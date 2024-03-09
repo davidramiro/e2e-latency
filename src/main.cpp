@@ -2,7 +2,6 @@
 #include "Mouse.h"
 #include <Chrono.h>
 
-
 /// @brief Analog pin of the photodiode
 const int photoDiodePin = A1;
 /// @brief Percentage threshold of brightness change that indicates screen movement
@@ -22,26 +21,27 @@ void setup()
 {
   Serial.begin(115200);
   Serial.println("init");
-  pinMode (photoDiodePin, INPUT);
+  pinMode(photoDiodePin, INPUT);
   Mouse.begin();
   Serial.println("starting in 5 seconds");
   delay(5000);
 }
 
-
 /// @brief Moves the mouse vertically via USB
 /// @param direction true for up, false for down
-void moveMouseVertically(bool direction) {
+void moveMouseVertically(bool direction)
+{
   char yTravel = direction ? -127 : 127;
 
-  for (uint8_t i = 0; i < mouseDistance; i++) {
+  for (uint8_t i = 0; i < mouseDistance; i++)
+  {
     Mouse.move(0, yTravel, 0);
   }
 }
 
-
 /// @brief Resets temporary brightness value and mouse position
-void reset() {
+void reset()
+{
   moveMouseVertically(false);
   delay(500);
   brightness = 0;
@@ -69,12 +69,13 @@ void loop()
   Serial.println("sending mouse movement");
   moveMouseVertically(true);
 
-  
-  while (true) {
+  while (true)
+  {
     int delta = analogRead(photoDiodePin) - brightness;
 
     // loop until brightness delta is bigger than threshold
-    if (abs(delta) > (brightness * brightnessChangeThreshold)) {
+    if (abs(delta) > (brightness * brightnessChangeThreshold))
+    {
       // save and sum measured latency
       int latency = chrono.elapsed();
       sumLatency += latency;
@@ -85,14 +86,15 @@ void loop()
       Serial.print(" µs, brightness readout: ");
       Serial.println(brightness + delta);
       delay(500);
-      
+
       reset();
       break;
     }
   }
 
   // print summary with average latency
-  if (cycles == 10) {
+  if (cycles == 10)
+  {
     uint32_t avg = sumLatency / cycles;
     Serial.print(sumLatency);
     Serial.println();
@@ -110,5 +112,4 @@ void loop()
 
     delay(2000);
   }
-  
 }
