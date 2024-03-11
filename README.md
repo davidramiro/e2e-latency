@@ -5,11 +5,12 @@ Get a rough estimate on end-to-end (mouse-to-screen) system latency by attaching
 ## BoM
 
 - Arduino Pro Micro (ATmega32U4)
+- SSD1306 I2C OLED screen
 - Photoresistor module with analog output, e.g. KY-018 or G5516/LM393
 
-## Schematic
+## Wiring
 
-![Schematic](doc/schema.png?raw=true)
+![Wiring](doc/schema.png?raw=true)
 
 ## Usage
 
