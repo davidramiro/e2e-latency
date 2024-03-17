@@ -1,7 +1,7 @@
-#include <main.h>
+#include "main.h"
 
 #define SCREEN_WIDTH 128
-#define SCREEN_HEIGHT 32
+#define SCREEN_HEIGHT 64
 
 /// @brief Analog pin of the photodiode
 const int photoDiodePin = A1;
@@ -30,12 +30,7 @@ void setup()
 
   pinMode(photoDiodePin, INPUT);
   Mouse.begin();
-  for (int i = 5; i > 0; i--)
-  {
-    sprintf(buffer, "starting in %d...", i);
-    printBufferToScreen(true);
-    delay(1000);
-  }
+  countdown(5);
 }
 
 /// @brief Measures brightness, waits for brightness change, saves latency. Shows an average after 10 cycyles.
@@ -97,6 +92,7 @@ void loop()
     cycles = 0;
 
     delay(5000);
+    countdown(5);
   }
 }
 
@@ -124,7 +120,7 @@ void initScreen()
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(WHITE);
-  display.setCursor(15, 10);
+  display.setCursor(15, 0);
   display.write(0x10);
   display.print(" e2e-latency ");
   display.write(0x11);
@@ -149,7 +145,7 @@ void printBufferToScreen(boolean segment, int glyph)
   }
 
   display.clearDisplay();
-  display.drawFastHLine(0, 10, 128, WHITE);
+  display.drawFastHLine(0, SCREEN_HEIGHT / 3, 128, WHITE);
 
   display.setTextSize(1);
   display.setCursor(0, 0);
@@ -157,7 +153,7 @@ void printBufferToScreen(boolean segment, int glyph)
   display.display();
 
   display.setTextSize(2);
-  display.setCursor(0, 16);
+  display.setCursor(0, SCREEN_HEIGHT / 2);
   display.write(glyph);
   display.println(lowerScreenBuf);
   display.display();
@@ -169,4 +165,14 @@ void reset()
   moveMouseVertically(false);
   delay(500);
   brightness = 0;
+}
+
+void countdown(int seconds)
+{
+  for (; seconds > 0; seconds--)
+  {
+    sprintf(buffer, "starting in %d...", seconds);
+    printBufferToScreen(true);
+    delay(1000);
+  }
 }

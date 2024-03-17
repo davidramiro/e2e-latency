@@ -7,6 +7,7 @@
 
 void reset();
 void initScreen();
+void countdown(int seconds);
 void moveMouseVertically(bool direction);
 void printBufferToScreen(boolean segment);
 void printBufferToScreen(boolean segment, int glyph);
