@@ -7,11 +7,8 @@
 const int photoDiodePin = A1;
 /// @brief Percentage threshold of brightness change that indicates screen movement
 const float brightnessChangeThreshold = 0.2;
-/// @brief Factor of how far to move the mouse
-const int mouseDistance = 8;
 
-int brightness = 0;
-uint32_t sumLatency = 0;
+unsigned long sumLatency = 0;
 int cycles = 0;
 
 String topScreenBuf = "";
@@ -43,15 +40,15 @@ void loop()
   delay(500);
 
   // get reference brightness
-  brightness = analogRead(photoDiodePin);
+  int brightness = analogRead(photoDiodePin);
   sprintf(buffer, "baseline: %d", brightness);
   printBufferToScreen(true);
 
   delay(500);
 
-  // reset timer, move mouse
-  chrono.restart();
-  moveMouseVertically(true);
+  // reset timer, click mouse
+  uint32_t start = micros();
+  Mouse.click(MOUSE_LEFT);
 
   while (true)
   {
@@ -61,19 +58,25 @@ void loop()
     if (abs(delta) > (brightness * brightnessChangeThreshold))
     {
       // save and sum measured latency
-      int latency = chrono.elapsed();
+      unsigned long latency = micros() - start;
       sumLatency += latency;
-      cycles++;
+
+      float latency_ms = latency / 1000.0f;
+
+      // FIXME: truncate output to fit screen
+      char ms[16];
+      dtostrf(latency_ms, 0, 2, ms);
 
       sprintf(buffer, "measured: %d", (brightness + delta));
       printBufferToScreen(true);
 
-      sprintf(buffer, "%d ms", latency);
+      sprintf(buffer, "%s ms", ms);
       printBufferToScreen(false);
 
       delay(500);
+      brightness = 0;
 
-      reset();
+      cycles++;
       break;
     }
   }
@@ -81,11 +84,15 @@ void loop()
   // print summary with average latency
   if (cycles == 10)
   {
-    int avg = sumLatency / cycles;
+    unsigned long avg = sumLatency / cycles;
+    float avg_ms = avg / 1000.0f;
+    char ms[16];
+    dtostrf(avg_ms, 0, 2, ms);
+
     sprintf(buffer, "10 cycles avg:");
     printBufferToScreen(true);
 
-    sprintf(buffer, "  %d ms", avg);
+    sprintf(buffer, "  %s ms", ms);
     printBufferToScreen(false, 0xEC);
 
     sumLatency = 0;
@@ -93,18 +100,6 @@ void loop()
 
     delay(5000);
     countdown(5);
-  }
-}
-
-/// @brief Moves the mouse vertically via USB
-/// @param direction true for up, false for down
-void moveMouseVertically(bool direction)
-{
-  char yTravel = direction ? -127 : 127;
-
-  for (uint8_t i = 0; i < mouseDistance; i++)
-  {
-    Mouse.move(0, yTravel, 0);
   }
 }
 
@@ -126,11 +121,6 @@ void initScreen()
   display.write(0x11);
   display.display();
   delay(2000);
-}
-
-void printBufferToScreen(boolean segment)
-{
-  printBufferToScreen(segment, 0);
 }
 
 void printBufferToScreen(boolean segment, int glyph)
@@ -157,14 +147,6 @@ void printBufferToScreen(boolean segment, int glyph)
   display.write(glyph);
   display.println(lowerScreenBuf);
   display.display();
-}
-
-/// @brief Resets temporary brightness value and mouse position
-void reset()
-{
-  moveMouseVertically(false);
-  delay(500);
-  brightness = 0;
 }
 
 void countdown(int seconds)
