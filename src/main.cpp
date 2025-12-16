@@ -3,24 +3,32 @@
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
 static constexpr int16_t DIVIDER_Y = SCREEN_HEIGHT / 3;
-static constexpr int16_t LOWER_CURSOR_Y   = SCREEN_HEIGHT / 2 - 4;
-static constexpr uint8_t GLYPH_NEW   = 0x1A;
-static constexpr uint8_t GLYPH_AVG   = 0xEC;
-static constexpr uint8_t GLYPH_MS    = 0xEA;
+static constexpr int16_t LOWER_CURSOR_Y = SCREEN_HEIGHT / 2 - 4;
+static constexpr uint8_t GLYPH_NEW = 0x1A;
+static constexpr uint8_t GLYPH_AVG = 0xEC;
+static constexpr uint8_t GLYPH_MS = 0xEA;
 static constexpr uint8_t GLYPH_SIGMA = 0xE4;
 static constexpr uint8_t GLYPH_LBRAK = 0xAF;
 static constexpr uint8_t GLYPH_RBRAK = 0xAE;
 
+/// @brief Analog pin connected to signal of photodiode/photoresistor
 static constexpr uint8_t DIODE_PIN = A1;
-// arbitrary threshold for brightness change. 0.2 seems good for photoresistor, 0.05 for photodiode.
+/// @brief RX LED PIN to show fault
+static constexpr uint8_t RX_LED_PIN = 17;
+/// @brief Arbitrary threshold for brightness change. 0.2 seems good for photoresistor, 0.05 for photodiode.
 static constexpr float BRIGHTNESS_THRESHOLD = 0.05;
-// 
+/// @brief Number of measurements before calculating summary
 static constexpr uint8_t NUM_CYCLES = 10;
 
+static constexpr uint16_t MEASUREMENT_DELAY_MS = 500;
+static constexpr uint16_t SUMMARY_DISPLAY_MS = 5000;
+static constexpr uint16_t COUNTDOWN_STEP_MS = 1000;
+static constexpr uint8_t COUNTDOWN_START_S = 5;
+
 uint32_t latencies_us[NUM_CYCLES] = {0};
-uint8_t cycleIndex = 0;
-int baseline = 0;
-int measured = 0;
+uint8_t cycle_index = 0;
+uint16_t baseline = 0;
+uint16_t measured = 0;
 float cycle_latency = 0.0f;
 float avg_ms = 0.0f;
 float stddev_ms = 0.0f;
@@ -34,7 +42,7 @@ void setup()
 
   pinMode(DIODE_PIN, INPUT);
   Mouse.begin();
-  countdown(5);
+  countdown(COUNTDOWN_START_S);
 }
 
 /// @brief Measures brightness, waits for brightness change, saves latency. Shows an average after last cycle.
@@ -44,7 +52,7 @@ void loop()
   baseline = analogRead(DIODE_PIN);
   printMeasurement();
 
-  delay(500);
+  delay(MEASUREMENT_DELAY_MS);
 
   baseline = analogRead(DIODE_PIN);
 
@@ -63,8 +71,9 @@ void loop()
       unsigned long latency = micros() - start;
 
       // Store this cycle in the array
-      if (cycleIndex < NUM_CYCLES) {
-        latencies_us[cycleIndex] = latency;
+      if (cycle_index < NUM_CYCLES)
+      {
+        latencies_us[cycle_index] = latency;
       }
 
       cycle_latency = latency / 1000.0f;
@@ -72,23 +81,23 @@ void loop()
 
       printMeasurement();
 
-      delay(500);
+      delay(MEASUREMENT_DELAY_MS);
       measured = 0;
 
-      cycleIndex++;
+      cycle_index++;
       break;
     }
   }
 
-  if (cycleIndex == NUM_CYCLES)
-  {   
+  if (cycle_index == NUM_CYCLES)
+  {
     computeStatsMs(latencies_us, NUM_CYCLES, avg_ms, stddev_ms);
 
-    cycleIndex = 0;
+    cycle_index = 0;
 
     printAverage();
 
-    delay(5000);
+    delay(SUMMARY_DISPLAY_MS);
     countdown(5);
   }
 }
@@ -96,7 +105,18 @@ void loop()
 /// @brief SSD1306 setup, showing a splashscreen and waiting 2s.
 void initScreen()
 {
-  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C))
+  {
+    // Fatal error - blink RX LED
+    pinMode(RX_LED_PIN, OUTPUT);
+    while (true)
+    {
+      digitalWrite(RX_LED_PIN, HIGH);
+      delay(200);
+      digitalWrite(RX_LED_PIN, LOW);
+      delay(200);
+    }
+  }
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(WHITE);
@@ -109,12 +129,13 @@ void initScreen()
 }
 
 /// @brief Calculates average ms latency and standard deviation for an array of us latencies.
-static void computeStatsMs(const uint32_t* us, uint8_t n, float &mean_ms, float &sd_ms)
+static void computeStatsMs(const uint32_t *us, uint8_t n, float &mean_ms, float &sd_ms)
 {
   float mean = 0.0f;
-  float M2   = 0.0f;
+  float M2 = 0.0f;
 
-  for (uint8_t i = 0; i < n; ++i) {
+  for (uint8_t i = 0; i < n; ++i)
+  {
     const float x = us[i] / 1000.0f;
     const float delta = x - mean;
     mean += delta / float(i + 1);
@@ -123,7 +144,7 @@ static void computeStatsMs(const uint32_t* us, uint8_t n, float &mean_ms, float 
   }
 
   mean_ms = mean;
-  sd_ms   = (n > 1) ? sqrtf(M2 / float(n - 1)) : 0.0f; // sample std dev [web:23]
+  sd_ms = (n > 1) ? sqrtf(M2 / float(n - 1)) : 0.0f; // sample std dev [web:23]
 }
 
 /// @brief Refresh screen, draw divier line.
@@ -163,14 +184,15 @@ void printMeasurement()
   display.print("base: ");
   display.print(baseline);
 
-  if (measured != 0) {
+  if (measured != 0)
+  {
     display.write(GLYPH_NEW);
     display.print(" new: ");
     display.print(measured);
   }
 
   display.setCursor(0, 8);
-  display.print(cycleIndex + 1);
+  display.print(cycle_index + 1);
   display.print(" / ");
   display.print(NUM_CYCLES);
 
@@ -199,22 +221,35 @@ void printAverage()
 /// @brief Shows a countdown of 5 seconds on the screen.
 void countdown(int seconds)
 {
-  for (; seconds > 0; --seconds) {
-    beginFrame();
+  static unsigned long last_update = millis();
+  static int remaining = seconds;
 
-    display.setTextSize(1);
-    display.setCursor(0, 0);
-    display.println("starting in...");
+  while (true)
+  {
+    if (remaining == 0) {
+      break;
+    }
+    
+    if (millis() - last_update >= COUNTDOWN_STEP_MS)
+    {
+      beginFrame();
 
-    display.setTextSize(2);
-    display.setCursor(0, LOWER_CURSOR_Y);
-    display.write(GLYPH_LBRAK);
-    display.print(' ');
-    display.print(seconds);
-    display.print(' ');
-    display.write(GLYPH_RBRAK);
+      display.setTextSize(1);
+      display.setCursor(0, 0);
+      display.println("starting in...");
 
-    display.display();
-    delay(1000);
+      display.setTextSize(2);
+      display.setCursor(0, LOWER_CURSOR_Y);
+      display.write(GLYPH_LBRAK);
+      display.print(' ');
+      display.print(remaining);
+      display.print(' ');
+      display.write(GLYPH_RBRAK);
+
+      display.display();
+
+      last_update = millis();
+      remaining--;
+    }
   }
 }
