@@ -12,4 +12,5 @@ static inline void drawMsValue(float ms);
 static inline void drawStdDevValue(float stddev);
 void printMeasurement();
 void printAverage();
-void countdown(int seconds);
+void showHeader();
+void showButtonReminder();

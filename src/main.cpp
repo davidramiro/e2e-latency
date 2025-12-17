@@ -13,10 +13,12 @@ static constexpr uint8_t GLYPH_RBRAK = 0xAE;
 
 /// @brief Analog pin connected to signal of photodiode/photoresistor
 static constexpr uint8_t DIODE_PIN = A1;
+/// @brief Pin shorted to ground via button
+static constexpr uint8_t BUTTON_PIN = 10;
 /// @brief RX LED PIN to show fault
 static constexpr uint8_t RX_LED_PIN = 17;
-/// @brief Arbitrary threshold for brightness change. 0.2 seems good for photoresistor, 0.05 for photodiode.
-static constexpr float BRIGHTNESS_THRESHOLD = 0.05;
+/// @brief Arbitrary threshold for brightness change. 0.2 seems good for photoresistor, 0.02 for photodiode.
+static constexpr float BRIGHTNESS_THRESHOLD = 0.02;
 /// @brief Number of measurements before calculating summary
 static constexpr uint8_t NUM_CYCLES = 10;
 
@@ -39,15 +41,30 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 void setup()
 {
   initScreen();
+  Serial.begin(115200);
 
   pinMode(DIODE_PIN, INPUT);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+
   Mouse.begin();
-  countdown(COUNTDOWN_START_S);
 }
 
 /// @brief Measures brightness, waits for brightness change, saves latency. Shows an average after last cycle.
 void loop()
 {
+  if (cycle_index == 0) {
+    display.clearDisplay();
+    showHeader();
+    showButtonReminder();
+    display.display();
+    while (true) {
+      uint8_t btn = digitalRead(BUTTON_PIN);
+      if (btn == LOW) {
+        break;
+      }
+    }
+  }
+
   // get reference brightness
   baseline = analogRead(DIODE_PIN);
   printMeasurement();
@@ -98,8 +115,22 @@ void loop()
     printAverage();
 
     delay(SUMMARY_DISPLAY_MS);
-    countdown(5);
   }
+}
+
+void showButtonReminder() {
+  display.setCursor(0, LOWER_CURSOR_Y);
+  display.setTextSize(1);
+  display.print("Press Button to start");
+}
+
+void showHeader() {
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.setCursor(15, 0);
+  display.write(0x10);
+  display.print(" e2e-latency ");
+  display.write(0x11);
 }
 
 /// @brief SSD1306 setup, showing a splashscreen and waiting 2s.
@@ -117,15 +148,6 @@ void initScreen()
       delay(200);
     }
   }
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(15, 0);
-  display.write(0x10);
-  display.print(" e2e-latency ");
-  display.write(0x11);
-  display.display();
-  delay(2000);
 }
 
 /// @brief Calculates average ms latency and standard deviation for an array of us latencies.
@@ -216,40 +238,4 @@ void printAverage()
   drawStdDevValue(stddev_ms);
 
   display.display();
-}
-
-/// @brief Shows a countdown of 5 seconds on the screen.
-void countdown(int seconds)
-{
-  static unsigned long last_update = millis();
-  static int remaining = seconds;
-
-  while (true)
-  {
-    if (remaining == 0) {
-      break;
-    }
-    
-    if (millis() - last_update >= COUNTDOWN_STEP_MS)
-    {
-      beginFrame();
-
-      display.setTextSize(1);
-      display.setCursor(0, 0);
-      display.println("starting in...");
-
-      display.setTextSize(2);
-      display.setCursor(0, LOWER_CURSOR_Y);
-      display.write(GLYPH_LBRAK);
-      display.print(' ');
-      display.print(remaining);
-      display.print(' ');
-      display.write(GLYPH_RBRAK);
-
-      display.display();
-
-      last_update = millis();
-      remaining--;
-    }
-  }
 }
