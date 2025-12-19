@@ -2,7 +2,6 @@
 
 static constexpr uint8_t SCREEN_WIDTH = 128;
 static constexpr uint8_t SCREEN_HEIGHT = 64;
-static constexpr int16_t DIVIDER_Y = SCREEN_HEIGHT / 3;
 static constexpr int16_t LOWER_CURSOR_Y = SCREEN_HEIGHT / 2 - 4;
 static constexpr uint8_t GLYPH_NEW = 0x1A;
 static constexpr uint8_t GLYPH_AVG = 0xE5;
@@ -24,8 +23,6 @@ static constexpr uint8_t NUM_CYCLES = 20;
 static constexpr uint16_t internalLatency = 112;
 
 static constexpr uint16_t MEASUREMENT_DELAY_MS = 300;
-static constexpr uint16_t COUNTDOWN_STEP_MS = 1000;
-static constexpr uint8_t COUNTDOWN_START_S = 5;
 
 uint32_t latencies_us[NUM_CYCLES] = {0};
 uint8_t cycle_index = 0;
@@ -45,8 +42,6 @@ void setup()
 
   pinMode(DIODE_PIN, INPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
-
-  Mouse.begin();
 }
 
 void waitForButtonPress()
@@ -62,6 +57,8 @@ void loop()
   {
     waitForButtonPress();
   }
+
+  Mouse.begin();
 
   // get reference brightness
   baseline = analogRead(DIODE_PIN);
@@ -118,6 +115,8 @@ void loop()
 
     printAverage();
   }
+
+  Mouse.end();
 }
 
 /// @brief SSD1306 setup and rendering a splashscreen.
@@ -150,34 +149,26 @@ void initScreen()
 }
 
 /// @brief Calculates average ms latency and standard deviation for an array of us latencies.
-static void computeStatsMs(const uint32_t *us, uint8_t n, float &mean_ms, float &sd_ms)
+void computeStatsMs(const uint32_t *us, uint8_t n, float &mean_ms, float &sd_ms)
 {
-  // TODO: sometimes 0, plausible?
-
   float mean = 0.0f;
   float M2 = 0.0f;
 
-  float sumLatency = 0.0f;
-
   for (uint8_t i = 0; i < n; ++i)
   {
-    const float x = us[i] / 1000.0f;
-    sumLatency += x;
-    const float delta = x - mean;
+    const float ms = us[i] / 1000.0f;
+    const float delta = ms - mean;
     mean += delta / float(i + 1);
-    const float delta2 = x - mean;
+    const float delta2 = ms - mean;
     M2 += delta * delta2;
   }
 
-  float avg = sumLatency / NUM_CYCLES;
-  Serial.println(avg);
-
   mean_ms = mean;
-  sd_ms = (n > 1) ? sqrtf(M2 / float(n - 1)) : 0.0f; // sample std dev [web:23]
+  sd_ms = (n > 1) ? sqrtf(M2 / float(n - 1)) : 0.0f;
 }
 
 /// @brief Draws milliseconds onto the lower portion of the screen.
-static inline void drawMsValue(float ms)
+void drawMsValue(float ms)
 {
   display.setTextSize(2);
   display.setCursor(0, LOWER_CURSOR_Y);
@@ -189,7 +180,7 @@ static inline void drawMsValue(float ms)
 }
 
 /// @brief Draws std dev onto the lower portion of the screen.
-static inline void drawStdDevValue(float stddev)
+void drawStdDevValue(float stddev)
 {
   display.setTextSize(1);
   display.setCursor(0, LOWER_CURSOR_Y + 18);

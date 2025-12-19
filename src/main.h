@@ -5,9 +5,9 @@
 #include <math.h> 
 
 void initScreen();
-static void computeStatsMs(const uint32_t* us, uint8_t n, float &mean_ms, float &sd_ms);
-static inline void drawMsValue(float ms);
-static inline void drawStdDevValue(float stddev);
+void computeStatsMs(const uint32_t* us, uint8_t n, float &mean_ms, float &sd_ms);
+void drawMsValue(float ms);
+void drawStdDevValue(float stddev);
 void waitForButtonPress();
 void printMeasurement();
 void printAverage();
