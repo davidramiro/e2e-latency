@@ -47,18 +47,6 @@ void setup()
   pinMode(BUTTON_PIN, INPUT_PULLUP);
 
   Mouse.begin();
-
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(19, 0);
-  display.write(0x10);
-  display.print(" e2e-latency ");
-  display.write(0x11);
-  display.setCursor(0, LOWER_CURSOR_Y);
-  display.setTextSize(1);
-  display.print("Press button to start");
-  display.display();
 }
 
 void waitForButtonPress()
@@ -132,7 +120,7 @@ void loop()
   }
 }
 
-/// @brief SSD1306 setup, showing a splashscreen and waiting 2s.
+/// @brief SSD1306 setup and rendering a splashscreen.
 void initScreen()
 {
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C))
@@ -147,6 +135,18 @@ void initScreen()
       delay(200);
     }
   }
+
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.setCursor(19, 0);
+  display.write(0x10);
+  display.print(" e2e-latency ");
+  display.write(0x11);
+  display.setCursor(0, LOWER_CURSOR_Y);
+  display.setTextSize(1);
+  display.print("Press button to start");
+  display.display();
 }
 
 /// @brief Calculates average ms latency and standard deviation for an array of us latencies.
