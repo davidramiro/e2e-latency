@@ -1,11 +1,11 @@
 #include "main.h"
 
 static constexpr uint8_t SCREEN_WIDTH = 128;
-static constexpr uint8_t SCREEN_HEIGHT=  64;
+static constexpr uint8_t SCREEN_HEIGHT = 64;
 static constexpr int16_t DIVIDER_Y = SCREEN_HEIGHT / 3;
 static constexpr int16_t LOWER_CURSOR_Y = SCREEN_HEIGHT / 2 - 4;
 static constexpr uint8_t GLYPH_NEW = 0x1A;
-static constexpr uint8_t GLYPH_AVG = 0xEC;
+static constexpr uint8_t GLYPH_AVG = 0xE5;
 static constexpr uint8_t GLYPH_SIGMA = 0xE4;
 static constexpr uint8_t GLYPH_LBRAK = 0xAF;
 static constexpr uint8_t GLYPH_RBRAK = 0xAE;
@@ -20,7 +20,6 @@ static constexpr uint8_t RX_LED_PIN = 17;
 static constexpr float BRIGHTNESS_THRESHOLD = 0.02;
 /// @brief Number of measurements before calculating summary
 static constexpr uint8_t NUM_CYCLES = 20;
-// FIXME: evaluate
 /// @brief Internal latency of the analog read, this lag will be subtracted from the measured latency
 static constexpr uint16_t internalLatency = 112;
 
@@ -62,22 +61,20 @@ void setup()
   display.display();
 }
 
-void waitForButtonPress() {
-  while (true) {
-      uint8_t btn = digitalRead(BUTTON_PIN);
-      if (btn == LOW) {
-        return;
-      }
-    }
+void waitForButtonPress()
+{
+  while (!digitalRead(BUTTON_PIN))
+    ;
 }
 
 /// @brief Measures brightness, waits for brightness change, saves latency. Shows an average after last cycle.
 void loop()
 {
-  if (cycle_index == 0) {
+  if (cycle_index == 0)
+  {
     waitForButtonPress();
   }
-  
+
   // get reference brightness
   baseline = analogRead(DIODE_PIN);
   printMeasurement();
@@ -87,36 +84,42 @@ void loop()
   baseline = analogRead(DIODE_PIN);
 
   // reset timer, click mouse
-  uint32_t start = micros();
-  // Mouse.click(MOUSE_LEFT);
+  unsigned long start = micros();
+  Mouse.click(MOUSE_LEFT);
 
   while (true)
   {
     int delta = analogRead(DIODE_PIN) - baseline;
 
     // loop until brightness delta is bigger than threshold
-    if (abs(delta) > (baseline * BRIGHTNESS_THRESHOLD));
-    
-    // save and sum measured latency
-    unsigned long latency = micros() - start;
-
-    // Store this cycle in the array
-    if (cycle_index < NUM_CYCLES)
+    if (abs(delta) > (baseline * BRIGHTNESS_THRESHOLD))
     {
-      latencies_us[cycle_index] = latency;
+      // save and sum measured latency
+      unsigned long latency = micros() - start;
+
+      if (latency < internalLatency)
+      {
+        printError();
+        break;
+      }
+
+      // Store this cycle in the array
+      if (cycle_index < NUM_CYCLES)
+      {
+        latencies_us[cycle_index] = latency - internalLatency;
+      }
+
+      cycle_latency = latency / 1000.0f;
+      measured = baseline + delta;
+
+      printMeasurement();
+
+      delay(MEASUREMENT_DELAY_MS);
+      measured = 0;
+
+      cycle_index++;
+      break;
     }
-
-    cycle_latency = latency / 1000.0f;
-    measured = baseline + delta;
-
-    printMeasurement();
-
-    delay(MEASUREMENT_DELAY_MS);
-    measured = 0;
-
-    cycle_index++;
-    break;
-  
   }
 
   if (cycle_index == NUM_CYCLES)
@@ -149,17 +152,25 @@ void initScreen()
 /// @brief Calculates average ms latency and standard deviation for an array of us latencies.
 static void computeStatsMs(const uint32_t *us, uint8_t n, float &mean_ms, float &sd_ms)
 {
+  // TODO: sometimes 0, plausible?
+
   float mean = 0.0f;
   float M2 = 0.0f;
+
+  float sumLatency = 0.0f;
 
   for (uint8_t i = 0; i < n; ++i)
   {
     const float x = us[i] / 1000.0f;
+    sumLatency += x;
     const float delta = x - mean;
     mean += delta / float(i + 1);
     const float delta2 = x - mean;
     M2 += delta * delta2;
   }
+
+  float avg = sumLatency / NUM_CYCLES;
+  Serial.println(avg);
 
   mean_ms = mean;
   sd_ms = (n > 1) ? sqrtf(M2 / float(n - 1)) : 0.0f; // sample std dev [web:23]
@@ -213,11 +224,23 @@ void printMeasurement()
   drawMsValue(cycle_latency);
 }
 
+void printError()
+{
+  display.clearDisplay();
+
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.println("implausible value!");
+  display.print("repeating cycle ");
+  display.print(cycle_index);
+  display.display();
+}
+
 /// @brief To be called after all measurements finish, to show the statistics.
 void printAverage()
 {
   display.clearDisplay();
-  
+
   display.setTextSize(1);
   display.setCursor(0, 0);
   display.println("Press button");

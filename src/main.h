@@ -13,4 +13,5 @@ void waitForButtonPress();
 void printMeasurement();
 void printAverage();
 void showHeader();
+void printError();
 void showButtonReminder();
