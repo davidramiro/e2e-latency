@@ -29,8 +29,8 @@ uint8_t cycle_index = 0;
 uint16_t baseline = 0;
 uint16_t measured = 0;
 float cycle_latency = 0.0f;
-float avg_ms = 0.0f;
-float stddev_ms = 0.0f;
+double mean_ms = 0.0f;
+double sd_ms = 0.0f;
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
@@ -109,7 +109,7 @@ void loop()
 
   if (cycle_index == NUM_CYCLES)
   {
-    computeStatsMs(latencies_us, NUM_CYCLES, avg_ms, stddev_ms);   
+    computeStatsMs();   
     printAverage();
 
     cycle_index = 0;
@@ -146,23 +146,29 @@ void initScreen()
   display.display();
 }
 
-/// @brief Calculates average ms latency and standard deviation for an array of us latencies.
-void computeStatsMs(const uint32_t *us, uint8_t n, float &mean_ms, float &sd_ms)
+/// @brief Calculates mean latency and sample standard deviation for an array of us latencies.
+void computeStatsMs()
 {
-  float mean = 0.0f;
-  float M2 = 0.0f;
-
-  for (uint8_t i = 0; i < n; ++i)
-  {
-    const float ms = us[i] / 1000.0f;
-    const float delta = ms - mean;
-    mean += delta / float(i + 1);
-    const float delta2 = ms - mean;
-    M2 += delta * delta2;
+ if (NUM_CYCLES <= 1) {
+    mean_ms = (double)latencies_us[0] / 1000.0;
+    sd_ms = 0.0;
+    return;
   }
-
-  mean_ms = mean;
-  sd_ms = (n > 1) ? sqrtf(M2 / float(n - 1)) : 0.0f;
+  
+  // calculate mean
+  double sum_ms = 0.0;
+  for (int i = 0; i < NUM_CYCLES; i++) {
+      sum_ms += (double)latencies_us[i] / 1000.0;
+  }
+  mean_ms = sum_ms / NUM_CYCLES;
+  
+  // calculate sample standard deviation
+  double variance_ms = 0.0;
+  for (int i = 0; i < NUM_CYCLES; i++) {
+      double diff_ms = ((double)latencies_us[i] / 1000.0) - mean_ms;
+      variance_ms += diff_ms * diff_ms;
+  }
+  sd_ms = sqrt(variance_ms / (NUM_CYCLES - 1));
 }
 
 /// @brief Draws milliseconds onto the lower portion of the screen.
@@ -239,6 +245,6 @@ void printAverage()
   display.print(NUM_CYCLES);
   display.println(" cycles:");
 
-  drawMsValue(avg_ms);
-  drawStdDevValue(stddev_ms);
+  drawMsValue(mean_ms);
+  drawStdDevValue(sd_ms);
 }

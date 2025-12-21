@@ -5,7 +5,7 @@
 #include <math.h> 
 
 void initScreen();
-void computeStatsMs(const uint32_t* us, uint8_t n, float &mean_ms, float &sd_ms);
+void computeStatsMs();
 void drawMsValue(float ms);
 void drawStdDevValue(float stddev);
 void waitForButtonPress();
