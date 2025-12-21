@@ -1,12 +1,13 @@
 # e2e-latency
 
-Get a rough estimate on end-to-end (mouse-to-screen) system latency by attaching a photo resistor to your screen and measuring response time with an Arduino.
+Get a rough estimate on input-to-photon (mouse-to-screen) system latency by attaching a phototransistor to your screen and measuring response time with an Arduino.
 
 ## BoM
 
 - Arduino Pro Micro (ATmega32U4)
 - SSD1306 I2C OLED screen
-- Photoresistor module with analog output, e.g. KY-018 or G5516/LM393
+- Phototransistor with high frequency, e.g. TEMT6000
+- Button
 
 ## Wiring
 
@@ -14,9 +15,7 @@ Get a rough estimate on end-to-end (mouse-to-screen) system latency by attaching
 
 ## Usage
 
-- Set up a repeatable test scenario where a mouse movement would cause a screen change (e.g. FPS game)
-- Tape the photo resistor to the screen
+- Set up a repeatable test scenario where a mouse click would cause a screen change (e.g. FPS game, mouse latency test at (testufo.com)[https://testufo.com/flicker])
+- Hold the photo transistor to the screen
 - Connect USB
-- Open a serial monitor with 115200 baud, e.g. `screen /dev/ttyACM0 115200`
-
-Test starts 5 seconds after connecting USB. It will do 10 cycles, print the average latency and repeat until disconnected.
+- Press button to start 20 measurements, wait for average to be reported on screen
