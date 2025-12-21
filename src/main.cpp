@@ -10,13 +10,13 @@ static constexpr uint8_t GLYPH_LBRAK = 0xAF;
 static constexpr uint8_t GLYPH_RBRAK = 0xAE;
 
 /// @brief Analog pin connected to signal of photodiode/photoresistor
-static constexpr uint8_t DIODE_PIN = A1;
+static constexpr uint8_t DIODE_PIN = A3;
 /// @brief Pin shorted to ground via button
 static constexpr uint8_t BUTTON_PIN = 10;
 /// @brief RX LED PIN to show fault
 static constexpr uint8_t RX_LED_PIN = 17;
-/// @brief Arbitrary threshold for brightness change. 0.2 seems good for photoresistor, 0.02 for photodiode.
-static constexpr float BRIGHTNESS_THRESHOLD = 0.02;
+/// @brief Sensor threshold for registering a screen change event. 40 mV increments of the analog readout.
+static constexpr uint16_t BRIGHTNESS_THRESHOLD = 20;
 /// @brief Number of measurements before calculating summary
 static constexpr uint8_t NUM_CYCLES = 20;
 /// @brief Internal latency of the analog read, this lag will be subtracted from the measured latency
@@ -46,7 +46,7 @@ void setup()
 
 void waitForButtonPress()
 {
-  while (!digitalRead(BUTTON_PIN))
+  while (digitalRead(BUTTON_PIN))
     ;
 }
 
@@ -56,9 +56,8 @@ void loop()
   if (cycle_index == 0)
   {
     waitForButtonPress();
+    Mouse.begin();
   }
-
-  Mouse.begin();
 
   // get reference brightness
   baseline = analogRead(DIODE_PIN);
@@ -70,17 +69,18 @@ void loop()
 
   // reset timer, click mouse
   unsigned long start = micros();
-  Mouse.click(MOUSE_LEFT);
+  Mouse.press(MOUSE_LEFT);
 
   while (true)
   {
     int delta = analogRead(DIODE_PIN) - baseline;
 
     // loop until brightness delta is bigger than threshold
-    if (abs(delta) > (baseline * BRIGHTNESS_THRESHOLD))
+    if (abs(delta) > BRIGHTNESS_THRESHOLD)
     {
       // save and sum measured latency
       unsigned long latency = micros() - start;
+      Mouse.release();
 
       if (latency < internalLatency)
       {
@@ -109,14 +109,12 @@ void loop()
 
   if (cycle_index == NUM_CYCLES)
   {
-    computeStatsMs(latencies_us, NUM_CYCLES, avg_ms, stddev_ms);
+    computeStatsMs(latencies_us, NUM_CYCLES, avg_ms, stddev_ms);   
+    printAverage();
 
     cycle_index = 0;
-
-    printAverage();
+    Mouse.end();
   }
-
-  Mouse.end();
 }
 
 /// @brief SSD1306 setup and rendering a splashscreen.
