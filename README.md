@@ -1,6 +1,6 @@
-# e2e-latency
+# m2p-latency
 
-Get a rough estimate on input-to-photon (mouse-to-screen) system latency by attaching a phototransistor to your screen and measuring response time with an Arduino.
+Get a rough estimate on mouse-to-photon (time until a mouse input triggers a screen change) system latency by attaching a phototransistor to your screen and measuring response time with an Arduino.
 
 ## BoM
 
