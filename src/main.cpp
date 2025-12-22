@@ -12,7 +12,7 @@ static constexpr uint8_t GLYPH_RBRAK = 0xAE;
 /// @brief Analog pin connected to signal of photodiode/photoresistor
 static constexpr uint8_t DIODE_PIN = A3;
 /// @brief Pin shorted to ground via button
-static constexpr uint8_t BUTTON_PIN = 10;
+static constexpr uint8_t BUTTON_PIN = 7;
 /// @brief RX LED PIN to show fault
 static constexpr uint8_t RX_LED_PIN = 17;
 /// @brief Sensor threshold for registering a screen change event. 40 mV increments of the analog readout.
@@ -31,6 +31,7 @@ uint16_t measured = 0;
 float cycle_latency = 0.0f;
 double mean_ms = 0.0f;
 double sd_ms = 0.0f;
+volatile boolean interrupted = false;
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
@@ -42,6 +43,7 @@ void setup()
 
   pinMode(DIODE_PIN, INPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), isr, FALLING);
 }
 
 void waitForButtonPress()
@@ -73,6 +75,17 @@ void loop()
 
   while (true)
   {
+    if (interrupted) {
+        interrupted = false;
+        Mouse.release();
+        cycle_index = 0;
+        
+        drawInterrupted();
+        delay(1000);
+        drawStartupScreen();
+        break;
+    }
+
     int delta = analogRead(DIODE_PIN) - baseline;
 
     // loop until brightness delta is bigger than threshold
@@ -117,6 +130,40 @@ void loop()
   }
 }
 
+void isr() {
+  if (cycle_index == 0) {
+    return;
+  }
+
+  interrupted = true;
+}
+
+void drawStartupScreen() {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.setCursor(19, 0);
+  display.write(0x10);
+  display.print(" e2e-latency ");
+  display.write(0x11);
+  display.setCursor(0, LOWER_CURSOR_Y);
+  display.setTextSize(1);
+  display.print("Press button to start");
+  display.display();
+}
+
+void drawInterrupted() {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.setCursor(19, 0);
+  display.print("Interrupted.");
+  display.setCursor(0, LOWER_CURSOR_Y);
+  display.setTextSize(1);
+  display.print("Restarting...");
+  display.display();
+}
+
 /// @brief SSD1306 setup and rendering a splashscreen.
 void initScreen()
 {
@@ -133,17 +180,7 @@ void initScreen()
     }
   }
 
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(19, 0);
-  display.write(0x10);
-  display.print(" e2e-latency ");
-  display.write(0x11);
-  display.setCursor(0, LOWER_CURSOR_Y);
-  display.setTextSize(1);
-  display.print("Press button to start");
-  display.display();
+  drawStartupScreen();
 }
 
 /// @brief Calculates mean latency and sample standard deviation for an array of us latencies.
