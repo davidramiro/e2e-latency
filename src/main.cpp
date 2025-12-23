@@ -10,7 +10,7 @@ static constexpr uint8_t GLYPH_LBRAK = 0xAF;
 static constexpr uint8_t GLYPH_RBRAK = 0xAE;
 
 /// @brief Analog pin connected to signal of photodiode/photoresistor
-static constexpr uint8_t DIODE_PIN = A3;
+static constexpr uint8_t SENSOR_PIN = A3;
 /// @brief Pin shorted to ground via button
 static constexpr uint8_t BUTTON_PIN = 7;
 /// @brief RX LED PIN to show fault
@@ -41,7 +41,7 @@ void setup()
   initScreen();
   Serial.begin(115200);
 
-  pinMode(DIODE_PIN, INPUT);
+  pinMode(SENSOR_PIN, INPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), isr, FALLING);
 }
@@ -62,12 +62,12 @@ void loop()
   }
 
   // get reference brightness
-  baseline = analogRead(DIODE_PIN);
+  baseline = analogRead(SENSOR_PIN);
   printMeasurement();
 
   delay(MEASUREMENT_DELAY_MS);
 
-  baseline = analogRead(DIODE_PIN);
+  baseline = analogRead(SENSOR_PIN);
 
   // reset timer, click mouse
   unsigned long start = micros();
@@ -86,7 +86,7 @@ void loop()
         break;
     }
 
-    int delta = analogRead(DIODE_PIN) - baseline;
+    int delta = analogRead(SENSOR_PIN) - baseline;
 
     // loop until brightness delta is bigger than threshold
     if (abs(delta) > BRIGHTNESS_THRESHOLD)
@@ -144,7 +144,7 @@ void drawStartupScreen() {
   display.setTextColor(WHITE);
   display.setCursor(19, 0);
   display.write(0x10);
-  display.print(" e2e-latency ");
+  display.print(" m2p-latency ");
   display.write(0x11);
   display.setCursor(0, LOWER_CURSOR_Y);
   display.setTextSize(1);
