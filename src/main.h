@@ -11,6 +11,7 @@ void drawStdDevValue(float stddev);
 void drawStartupScreen();
 void drawInterrupted();
 void isr();
+void measure();
 void waitForButtonPress();
 void printMeasurement();
 void printAverage();

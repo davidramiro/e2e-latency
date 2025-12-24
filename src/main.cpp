@@ -31,7 +31,9 @@ uint16_t measured = 0;
 float cycle_latency = 0.0f;
 double mean_ms = 0.0f;
 double sd_ms = 0.0f;
-volatile boolean interrupted = false;
+volatile boolean startRequested = false;
+volatile boolean restartRequested = false;
+boolean running = false;
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
@@ -41,7 +43,6 @@ void setup()
   initScreen();
   Serial.begin(115200);
 
-  pinMode(SENSOR_PIN, INPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), isr, FALLING);
 }
@@ -55,17 +56,56 @@ void waitForButtonPress()
 /// @brief Measures brightness, waits for brightness change, saves latency. Shows an average after last cycle.
 void loop()
 {
-  if (cycle_index == 0)
+  if (startRequested)
   {
-    waitForButtonPress();
+    startRequested = false;
+    restartRequested = false;
     Mouse.begin();
+
+    while (cycle_index < NUM_CYCLES)
+    {
+      measure();
+
+      if (restartRequested)
+      {
+        Mouse.release();
+        cycle_index = 0;
+
+        drawInterrupted();
+        delay(1000);
+        startRequested = false;
+        restartRequested = false;
+        running = false;
+        drawStartupScreen();
+        break;
+      }
+    }
+
+    if (cycle_index == NUM_CYCLES)
+    {
+      computeStatsMs();
+      printAverage();
+
+      cycle_index = 0;
+      running = false;
+      startRequested = false;
+      restartRequested = false;
+      Mouse.end();
+    }
   }
+}
+
+void measure()
+{
+  Serial.println("measure()");
 
   // get reference brightness
   baseline = analogRead(SENSOR_PIN);
   printMeasurement();
 
   delay(MEASUREMENT_DELAY_MS);
+
+  running = true;
 
   baseline = analogRead(SENSOR_PIN);
 
@@ -75,15 +115,9 @@ void loop()
 
   while (true)
   {
-    if (interrupted) {
-        interrupted = false;
-        Mouse.release();
-        cycle_index = 0;
-        
-        drawInterrupted();
-        delay(1000);
-        drawStartupScreen();
-        break;
+    if (restartRequested)
+    {
+      return;
     }
 
     int delta = analogRead(SENSOR_PIN) - baseline;
@@ -92,19 +126,20 @@ void loop()
     if (abs(delta) > BRIGHTNESS_THRESHOLD)
     {
       // save and sum measured latency
-      unsigned long latency = micros() - start;
+    unsigned long latency = micros() - start - internalLatency;
       Mouse.release();
 
-      if (latency < internalLatency)
+    if (latency <= 0)
       {
         printError();
+      delay(1000);
         break;
       }
 
       // Store this cycle in the array
       if (cycle_index < NUM_CYCLES)
       {
-        latencies_us[cycle_index] = latency - internalLatency;
+      latencies_us[cycle_index] = latency;
       }
 
       cycle_latency = latency / 1000.0f;
@@ -119,26 +154,22 @@ void loop()
       break;
     }
   }
+}
 
-  if (cycle_index == NUM_CYCLES)
+void isr()
+{
+  if (running)
   {
-    computeStatsMs();   
-    printAverage();
-
-    cycle_index = 0;
-    Mouse.end();
+    restartRequested = true;
+  }
+  else
+  {
+    startRequested = true;
   }
 }
 
-void isr() {
-  if (cycle_index == 0) {
-    return;
-  }
-
-  interrupted = true;
-}
-
-void drawStartupScreen() {
+void drawStartupScreen()
+{
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(WHITE);
@@ -152,7 +183,8 @@ void drawStartupScreen() {
   display.display();
 }
 
-void drawInterrupted() {
+void drawInterrupted()
+{
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(WHITE);
@@ -186,26 +218,42 @@ void initScreen()
 /// @brief Calculates mean latency and sample standard deviation for an array of us latencies.
 void computeStatsMs()
 {
- if (NUM_CYCLES <= 1) {
+  double sum_us = 0.0;
+  double sd_us = 0.0;
+  double mean_us = 0.0;
+  double variance_us = 0.0;
+
+  if (NUM_CYCLES == 0) {
+    mean_ms = 0.0;
+    sd_ms = 0.0;
+    return;
+  }
+
+  if (NUM_CYCLES == 1)
+  {
     mean_ms = (double)latencies_us[0] / 1000.0;
     sd_ms = 0.0;
     return;
   }
   
   // calculate mean
-  double sum_ms = 0.0;
-  for (int i = 0; i < NUM_CYCLES; i++) {
-      sum_ms += (double)latencies_us[i] / 1000.0;
+  for (int i = 0; i < NUM_CYCLES; i++)
+  {
+    sum_us += (double)latencies_us[i];
   }
-  mean_ms = sum_ms / NUM_CYCLES;
+  mean_us = sum_us / (double)NUM_CYCLES;
   
   // calculate sample standard deviation
-  double variance_ms = 0.0;
-  for (int i = 0; i < NUM_CYCLES; i++) {
-      double diff_ms = ((double)latencies_us[i] / 1000.0) - mean_ms;
-      variance_ms += diff_ms * diff_ms;
+
+  for (int i = 0; i < NUM_CYCLES; i++)
+  {
+    double diff_us = ((double)latencies_us[i]) - mean_us;
+    variance_us += diff_us * diff_us;
   }
-  sd_ms = sqrt(variance_ms / (NUM_CYCLES - 1));
+  sd_us = sqrt(variance_us / (NUM_CYCLES - 1));
+
+  mean_ms = mean_us / 1000.0;
+  sd_ms = sd_us / 1000.0;
 }
 
 /// @brief Draws milliseconds onto the lower portion of the screen.
@@ -240,6 +288,7 @@ void printMeasurement()
   display.setCursor(0, 0);
   display.print("base: ");
   display.print(baseline);
+  display.print(" ");
 
   if (measured != 0)
   {
