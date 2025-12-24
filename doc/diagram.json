@@ -14,27 +14,27 @@
     {
       "type": "board-ssd1306",
       "id": "oled1",
-      "top": 31.94,
-      "left": 77.03,
+      "top": 51.14,
+      "left": 19.43,
       "attrs": { "i2cAddress": "0x3c" }
     },
     {
       "type": "wokwi-pushbutton-6mm",
       "id": "btn1",
       "top": -194.2,
-      "left": 19.2,
+      "left": 57.6,
       "attrs": { "color": "green", "xray": "1" }
     }
   ],
   "connections": [
-    [ "ldr1:VCC", "nano:5V", "red", [ "h0" ] ],
+    [ "ldr1:VCC", "nano:3.3V", "red", [ "h0" ] ],
     [ "ldr1:GND", "nano:GND.1", "black", [ "h0" ] ],
-    [ "nano:GND.1", "oled1:GND", "black", [ "v0" ] ],
-    [ "nano:5V", "oled1:VCC", "red", [ "v48", "h47.85" ] ],
+    [ "nano:GND.1", "oled1:GND", "black", [ "v67.2", "h-57.6" ] ],
+    [ "nano:3.3V", "oled1:VCC", "red", [ "v48", "h47.85" ] ],
     [ "nano:3", "oled1:SCL", "yellow", [ "v19.2", "h76.5" ] ],
     [ "ldr1:AO", "nano:A3", "green", [ "h0" ] ],
     [ "oled1:SDA", "nano:2", "green", [ "v-192", "h-19.13" ] ],
-    [ "nano:10", "btn1:2.l", "green", [ "v0" ] ],
+    [ "nano:7", "btn1:2.l", "green", [ "v0" ] ],
     [ "btn1:2.r", "nano:RESET.2", "black", [ "h0" ] ]
   ],
   "dependencies": {}
