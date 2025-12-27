@@ -12,7 +12,6 @@ void drawStartupScreen();
 void drawInterrupted();
 void isr();
 void measure();
-void waitForButtonPress();
 void printMeasurement();
 void printAverage();
 void showHeader();

@@ -16,13 +16,13 @@ static constexpr uint8_t BUTTON_PIN = 7;
 /// @brief RX LED PIN to show fault
 static constexpr uint8_t RX_LED_PIN = 17;
 /// @brief Sensor threshold for registering a screen change event. 40 mV increments of the analog readout.
-static constexpr uint16_t BRIGHTNESS_THRESHOLD = 20;
+static constexpr uint16_t BRIGHTNESS_THRESHOLD = 10;
 /// @brief Number of measurements before calculating summary
 static constexpr uint8_t NUM_CYCLES = 20;
 /// @brief Internal latency of the analog read, this lag will be subtracted from the measured latency
 static constexpr uint16_t internalLatency = 112;
 
-static constexpr uint16_t MEASUREMENT_DELAY_MS = 300;
+static constexpr uint16_t MEASUREMENT_DELAY_MS = 287;
 
 uint32_t latencies_us[NUM_CYCLES] = {0};
 uint8_t cycle_index = 0;
@@ -45,12 +45,6 @@ void setup()
 
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), isr, FALLING);
-}
-
-void waitForButtonPress()
-{
-  while (digitalRead(BUTTON_PIN))
-    ;
 }
 
 /// @brief Measures brightness, waits for brightness change, saves latency. Shows an average after last cycle.
@@ -120,13 +114,13 @@ void measure()
       return;
     }
 
-    int delta = analogRead(SENSOR_PIN) - baseline;
+    int32_t delta = analogRead(SENSOR_PIN) - baseline;
 
     // loop until brightness delta is bigger than threshold
     if (abs(delta) > BRIGHTNESS_THRESHOLD)
     {
       // save and sum measured latency
-    unsigned long latency = micros() - start - internalLatency;
+      long latency = micros() - start - internalLatency;
       Mouse.release();
 
     if (latency <= 0)
