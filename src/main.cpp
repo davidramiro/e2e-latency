@@ -1,41 +1,11 @@
 #include "main.h"
 
-static constexpr uint8_t SCREEN_WIDTH = 128;
-static constexpr uint8_t SCREEN_HEIGHT = 64;
-static constexpr int16_t LOWER_CURSOR_Y = SCREEN_HEIGHT / 2 - 4;
-static constexpr uint8_t GLYPH_NEW = 0x1A;
-static constexpr uint8_t GLYPH_AVG = 0xE5;
-static constexpr uint8_t GLYPH_SIGMA = 0xE4;
-static constexpr uint8_t GLYPH_LBRAK = 0xAF;
-static constexpr uint8_t GLYPH_RBRAK = 0xAE;
-
-/// @brief Analog pin connected to signal of photodiode/photoresistor
-static constexpr uint8_t SENSOR_PIN = A3;
-/// @brief Pin shorted to ground via button
-static constexpr uint8_t BUTTON_PIN = 7;
-/// @brief RX LED PIN to show fault
-static constexpr uint8_t RX_LED_PIN = 17;
-/// @brief Sensor threshold for registering a screen change event. 40 mV increments of the analog readout.
-static constexpr uint16_t BRIGHTNESS_THRESHOLD = 10;
-/// @brief Number of measurements before calculating summary
-static constexpr uint8_t NUM_CYCLES = 20;
-/// @brief Internal latency of the analog read, this lag will be subtracted from the measured latency
-static constexpr uint16_t internalLatency = 112;
-
-static constexpr uint16_t MEASUREMENT_DELAY_MS = 287;
-
 uint32_t latencies_us[NUM_CYCLES] = {0};
 uint8_t cycle_index = 0;
-uint16_t baseline = 0;
-uint16_t measured = 0;
-float cycle_latency = 0.0f;
-double mean_ms = 0.0f;
-double sd_ms = 0.0f;
+
 volatile boolean startRequested = false;
 volatile boolean restartRequested = false;
 boolean running = false;
-
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 /// @brief Inits analog pin and mouse HID
 void setup()
@@ -77,8 +47,11 @@ void loop()
 
     if (cycle_index == NUM_CYCLES)
     {
-      computeStatsMs();
-      printAverage();
+
+      double mean_ms = 0.0;
+      double sd_ms = 0.0;
+      computeStatsMs(&mean_ms, &sd_ms);
+      printAverage(mean_ms, sd_ms);
 
       cycle_index = 0;
       running = false;
@@ -94,8 +67,8 @@ void measure()
   Serial.println("measure()");
 
   // get reference brightness
-  baseline = analogRead(SENSOR_PIN);
-  printMeasurement();
+  uint16_t baseline = analogRead(SENSOR_PIN);
+  printMeasurement(baseline, cycle_index, 0.0);
 
   delay(MEASUREMENT_DELAY_MS);
 
@@ -104,7 +77,7 @@ void measure()
   baseline = analogRead(SENSOR_PIN);
 
   // reset timer, click mouse
-  unsigned long start = micros();
+  const unsigned long start = micros();
   Mouse.press(MOUSE_LEFT);
 
   while (true)
@@ -114,7 +87,7 @@ void measure()
       return;
     }
 
-    int32_t delta = analogRead(SENSOR_PIN) - baseline;
+    const int32_t delta = analogRead(SENSOR_PIN) - baseline;
 
     // loop until brightness delta is bigger than threshold
     if (abs(delta) > BRIGHTNESS_THRESHOLD)
@@ -123,26 +96,22 @@ void measure()
       long latency = micros() - start - internalLatency;
       Mouse.release();
 
-    if (latency <= 0)
+      if (latency <= 0)
       {
         printError();
-      delay(1000);
+        delay(1000);
         break;
       }
 
       // Store this cycle in the array
       if (cycle_index < NUM_CYCLES)
       {
-      latencies_us[cycle_index] = latency;
+        latencies_us[cycle_index] = latency;
       }
 
-      cycle_latency = latency / 1000.0f;
-      measured = baseline + delta;
-
-      printMeasurement();
+      printMeasurement(baseline, cycle_index, latency / MS_FACTOR, baseline + delta);
 
       delay(MEASUREMENT_DELAY_MS);
-      measured = 0;
 
       cycle_index++;
       break;
@@ -162,169 +131,46 @@ void isr()
   }
 }
 
-void drawStartupScreen()
-{
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(19, 0);
-  display.write(0x10);
-  display.print(" m2p-latency ");
-  display.write(0x11);
-  display.setCursor(0, LOWER_CURSOR_Y);
-  display.setTextSize(1);
-  display.print("Press button to start");
-  display.display();
-}
 
-void drawInterrupted()
-{
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(19, 0);
-  display.print("Interrupted.");
-  display.setCursor(0, LOWER_CURSOR_Y);
-  display.setTextSize(1);
-  display.print("Restarting...");
-  display.display();
-}
-
-/// @brief SSD1306 setup and rendering a splashscreen.
-void initScreen()
-{
-  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C))
-  {
-    // Fatal error - blink RX LED
-    pinMode(RX_LED_PIN, OUTPUT);
-    while (true)
-    {
-      digitalWrite(RX_LED_PIN, HIGH);
-      delay(200);
-      digitalWrite(RX_LED_PIN, LOW);
-      delay(200);
-    }
-  }
-
-  drawStartupScreen();
-}
 
 /// @brief Calculates mean latency and sample standard deviation for an array of us latencies.
-void computeStatsMs()
+void computeStatsMs(double *mean_ms, double *sd_ms)
 {
   double sum_us = 0.0;
   double sd_us = 0.0;
   double mean_us = 0.0;
   double variance_us = 0.0;
 
-  if (NUM_CYCLES == 0) {
-    mean_ms = 0.0;
-    sd_ms = 0.0;
+  if (NUM_CYCLES == 0)
+  {
+    *mean_ms = 0.0;
+    *sd_ms = 0.0;
     return;
   }
 
   if (NUM_CYCLES == 1)
   {
-    mean_ms = (double)latencies_us[0] / 1000.0;
-    sd_ms = 0.0;
+    *mean_ms = (double)latencies_us[0] / MS_FACTOR;
+    *sd_ms = 0.0;
     return;
   }
-  
+
   // calculate mean
   for (int i = 0; i < NUM_CYCLES; i++)
   {
     sum_us += (double)latencies_us[i];
   }
   mean_us = sum_us / (double)NUM_CYCLES;
-  
+
   // calculate sample standard deviation
 
   for (int i = 0; i < NUM_CYCLES; i++)
   {
-    double diff_us = ((double)latencies_us[i]) - mean_us;
+     const double diff_us = ((double)latencies_us[i]) - mean_us;
     variance_us += diff_us * diff_us;
   }
   sd_us = sqrt(variance_us / (NUM_CYCLES - 1));
 
-  mean_ms = mean_us / 1000.0;
-  sd_ms = sd_us / 1000.0;
-}
-
-/// @brief Draws milliseconds onto the lower portion of the screen.
-void drawMsValue(float ms)
-{
-  display.setTextSize(2);
-  display.setCursor(0, LOWER_CURSOR_Y);
-  int digits = log10(ms) + 1;
-
-  display.print(ms, 5 - digits);
-  display.print(" ms");
-  display.display();
-}
-
-/// @brief Draws std dev onto the lower portion of the screen.
-void drawStdDevValue(float stddev)
-{
-  display.setTextSize(1);
-  display.setCursor(0, LOWER_CURSOR_Y + 18);
-  display.write(GLYPH_SIGMA);
-  display.print(" ");
-  display.print(stddev, 2);
-  display.display();
-}
-
-/// @brief To be called between measurements, to show a live update to the user.
-void printMeasurement()
-{
-  display.clearDisplay();
-
-  display.setTextSize(1);
-  display.setCursor(0, 0);
-  display.print("base: ");
-  display.print(baseline);
-  display.print(" ");
-
-  if (measured != 0)
-  {
-    display.write(GLYPH_NEW);
-    display.print(" new: ");
-    display.print(measured);
-  }
-
-  display.setCursor(0, 8);
-  display.print(cycle_index + 1);
-  display.print(" / ");
-  display.print(NUM_CYCLES);
-
-  drawMsValue(cycle_latency);
-}
-
-void printError()
-{
-  display.clearDisplay();
-
-  display.setTextSize(1);
-  display.setCursor(0, 0);
-  display.println("implausible value!");
-  display.print("repeating cycle ");
-  display.print(cycle_index);
-  display.display();
-}
-
-/// @brief To be called after all measurements finish, to show the statistics.
-void printAverage()
-{
-  display.clearDisplay();
-
-  display.setTextSize(1);
-  display.setCursor(0, 0);
-  display.println("Press button");
-  display.println("to restart.");
-  display.write(GLYPH_AVG);
-  display.print(" over ");
-  display.print(NUM_CYCLES);
-  display.println(" cycles:");
-
-  drawMsValue(mean_ms);
-  drawStdDevValue(sd_ms);
+  *mean_ms = mean_us / MS_FACTOR;
+  *sd_ms = sd_us / MS_FACTOR;
 }
