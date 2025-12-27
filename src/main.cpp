@@ -11,7 +11,6 @@ boolean running = false;
 void setup()
 {
   initScreen();
-  Serial.begin(115200);
 
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), isr, FALLING);
@@ -64,8 +63,6 @@ void loop()
 
 void measure()
 {
-  Serial.println("measure()");
-
   // get reference brightness
   uint16_t baseline = analogRead(SENSOR_PIN);
   printMeasurement(baseline, cycle_index, 0.0);
@@ -87,7 +84,7 @@ void measure()
       return;
     }
 
-    const int32_t delta = analogRead(SENSOR_PIN) - baseline;
+    const int delta = analogRead(SENSOR_PIN) - baseline;
 
     // loop until brightness delta is bigger than threshold
     if (abs(delta) > BRIGHTNESS_THRESHOLD)
@@ -103,7 +100,7 @@ void measure()
         break;
       }
 
-      // Store this cycle in the array
+      // store cycle in the array
       if (cycle_index < NUM_CYCLES)
       {
         latencies_us[cycle_index] = latency;
@@ -130,8 +127,6 @@ void isr()
     startRequested = true;
   }
 }
-
-
 
 /// @brief Calculates mean latency and sample standard deviation for an array of us latencies.
 void computeStatsMs(double *mean_ms, double *sd_ms)
@@ -166,7 +161,7 @@ void computeStatsMs(double *mean_ms, double *sd_ms)
 
   for (int i = 0; i < NUM_CYCLES; i++)
   {
-     const double diff_us = ((double)latencies_us[i]) - mean_us;
+    const double diff_us = ((double)latencies_us[i]) - mean_us;
     variance_us += diff_us * diff_us;
   }
   sd_us = sqrt(variance_us / (NUM_CYCLES - 1));
